@@ -44,27 +44,23 @@ typedef NTSTATUS (NTAPI *ZW_DEVICE_IO_CONTROL_FILE)(
 
 class InbvDisplay {
 private:
-    // Function pointers for native APIs
-    PNT_QUERY_SYSTEM_INFORMATION NtQuerySystemInformation;
-    RTL_INIT_UNICODE_STRING RtlInitUnicodeString;
-    ZW_DEVICE_IO_CONTROL_FILE ZwDeviceIoControlFile;
-    
     // INBV function pointers
-    VOID (NTAPI *InbvAcquireDisplayOwnership)();
-    VOID (NTAPI *InbvNotifyDisplayOwnershipChange)(IN PVOID Callback, IN PVOID Context);
-    VOID (NTAPI *InbvSetTextColor)(ULONG Color);
-    VOID (NTAPI *InbvSetScrollRegion)(ULONG x1, ULONG y1, ULONG x2, ULONG y2);
-    VOID (NTAPI *InbvSetDisplayOwnership)(BOOLEAN OwnDisplay);
-    VOID (NTAPI *InbvDisplayString)(PCHAR String);
-    BOOLEAN (NTAPI *InbvGetDisplayState)();
-    VOID (NTAPI *InbvSetProgressBarSubset)(ULONG SubsetIndex, ULONG MaximumValue);
-    VOID (NTAPI *InbvSetProgressBarPosition)(ULONG Position);
+    INBV_DISPLAY_STRING_FN InbvDisplayString;
+    INBV_SET_TEXT_COLOR_FN InbvSetTextColor;
+    INBV_SET_PROGRESS_BAR_SUBSET_FN InbvSetProgressBarSubset;
+    INBV_SET_PROGRESS_BAR_POSITION_FN InbvSetProgressBarPosition;
+    INBV_GET_DISPLAY_STATE_FN InbvGetDisplayState;
+    INBV_ACQUIRE_DISPLAY_OWNERSHIP_FN InbvAcquireDisplayOwnership;
+    INBV_SET_DISPLAY_OWNERSHIP_FN InbvSetDisplayOwnership;
+    INBV_SET_SCROLL_REGION_FN InbvSetScrollRegion;
     
-    // Module handles
-    HMODULE hNtDll;
+    // Module handle
     HMODULE hInbv;
-    
     bool initialized;
+    
+    // Private methods
+    bool LoadInbvFunctions();
+    
     
 public:
     InbvDisplay();

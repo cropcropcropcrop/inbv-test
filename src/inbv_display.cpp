@@ -1,6 +1,7 @@
 #include "inbv_display.h"
 #include <stdexcept>
 #include <string>
+#include <Windows.h>
 
 // INBV function names
 constexpr const char* INBV_DISPLAY_STRING_FN_NAME = "InbvDisplayString";
@@ -13,9 +14,10 @@ constexpr const char* INBV_SET_DISPLAY_OWNERSHIP_FN_NAME = "InbvSetDisplayOwners
 constexpr const char* INBV_SET_SCROLL_REGION_FN_NAME = "InbvSetScrollRegion";
 
 // Helper function to get a function pointer from a module
-static FARPROC GetFunctionPointer(HMODULE hModule, const char* functionName) {
+template<typename T>
+static T GetFunctionPointer(HMODULE hModule, const char* functionName) {
     if (!hModule) return nullptr;
-    return GetProcAddress(hModule, functionName);
+    return reinterpret_cast<T>(GetProcAddress(hModule, functionName));
 }
 
 // Internal function to load INBV functions
@@ -33,15 +35,15 @@ bool InbvDisplay::LoadInbvFunctions() {
         }
     }
 
-    // Get INBV function pointers
-    InbvDisplayString = (INBV_DISPLAY_STRING_FN)GetFunctionPointer(hInbv, INBV_DISPLAY_STRING_FN_NAME);
-    InbvSetTextColor = (INBV_SET_TEXT_COLOR_FN)GetFunctionPointer(hInbv, INBV_SET_TEXT_COLOR_FN_NAME);
-    InbvSetProgressBarSubset = (INBV_SET_PROGRESS_BAR_SUBSET_FN)GetFunctionPointer(hInbv, INBV_SET_PROGRESS_BAR_SUBSET_FN_NAME);
-    InbvSetProgressBarPosition = (INBV_SET_PROGRESS_BAR_POSITION_FN)GetFunctionPointer(hInbv, INBV_SET_PROGRESS_BAR_POSITION_FN_NAME);
-    InbvGetDisplayState = (INBV_GET_DISPLAY_STATE_FN)GetFunctionPointer(hInbv, INBV_GET_DISPLAY_STATE_FN_NAME);
-    InbvAcquireDisplayOwnership = (INBV_ACQUIRE_DISPLAY_OWNERSHIP_FN)GetFunctionPointer(hInbv, INBV_ACQUIRE_DISPLAY_OWNERSHIP_FN_NAME);
-    InbvSetDisplayOwnership = (INBV_SET_DISPLAY_OWNERSHIP_FN)GetFunctionPointer(hInbv, INBV_SET_DISPLAY_OWNERSHIP_FN_NAME);
-    InbvSetScrollRegion = (INBV_SET_SCROLL_REGION_FN)GetFunctionPointer(hInbv, INBV_SET_SCROLL_REGION_FN_NAME);
+    // Get INBV function pointers using the template helper
+    InbvDisplayString = GetFunctionPointer<INBV_DISPLAY_STRING_FN>(hInbv, INBV_DISPLAY_STRING_FN_NAME);
+    InbvSetTextColor = GetFunctionPointer<INBV_SET_TEXT_COLOR_FN>(hInbv, INBV_SET_TEXT_COLOR_FN_NAME);
+    InbvSetProgressBarSubset = GetFunctionPointer<INBV_SET_PROGRESS_BAR_SUBSET_FN>(hInbv, INBV_SET_PROGRESS_BAR_SUBSET_FN_NAME);
+    InbvSetProgressBarPosition = GetFunctionPointer<INBV_SET_PROGRESS_BAR_POSITION_FN>(hInbv, INBV_SET_PROGRESS_BAR_POSITION_FN_NAME);
+    InbvGetDisplayState = GetFunctionPointer<INBV_GET_DISPLAY_STATE_FN>(hInbv, INBV_GET_DISPLAY_STATE_FN_NAME);
+    InbvAcquireDisplayOwnership = GetFunctionPointer<INBV_ACQUIRE_DISPLAY_OWNERSHIP_FN>(hInbv, INBV_ACQUIRE_DISPLAY_OWNERSHIP_FN_NAME);
+    InbvSetDisplayOwnership = GetFunctionPointer<INBV_SET_DISPLAY_OWNERSHIP_FN>(hInbv, INBV_SET_DISPLAY_OWNERSHIP_FN_NAME);
+    InbvSetScrollRegion = GetFunctionPointer<INBV_SET_SCROLL_REGION_FN>(hInbv, INBV_SET_SCROLL_REGION_FN_NAME);
 
     // We only require the display string function to be available
     return (InbvDisplayString != nullptr);
@@ -74,6 +76,7 @@ bool InbvDisplay::Initialize() {
 
     // Load INBV functions
     if (!LoadInbvFunctions()) {
+        OutputDebugStringA("Failed to load INBV functions\n");
         return false;
     }
 
@@ -100,25 +103,25 @@ void InbvDisplay::DisplayString(const char* message) {
     if (initialized && InbvDisplayString) {
         // Convert to non-const as the INBV functions expect PCHAR
         InbvDisplayString(const_cast<PCHAR>(message));
-    } else if (initialized) {
+    } else {
         // Fallback to OutputDebugString if INBV is not available
         OutputDebugStringA(message);
     }
 }
 
 void InbvDisplay::SetProgress(ULONG percent) {
-    if (initialized) {
-        if (InbvSetProgressBarSubset && InbvSetProgressBarPosition) {
-            // Set the progress bar range (0-100)
-            InbvSetProgressBarSubset(0, 100);
-            // Set the current position
-            InbvSetProgressBarPosition(percent > 100 ? 100 : percent);
-        } else {
-            // Fallback: Just print the progress to debug output
-            char buffer[64];
-            sprintf_s(buffer, "Progress: %lu%%\n", percent > 100 ? 100 : percent);
-            OutputDebugStringA(buffer);
-        }
+    if (!initialized) return;
+    
+    if (InbvSetProgressBarSubset && InbvSetProgressBarPosition) {
+        // Set the progress bar range (0-100)
+        InbvSetProgressBarSubset(0, 100);
+        // Set the current position
+        InbvSetProgressBarPosition(percent > 100 ? 100 : percent);
+    } else {
+        // Fallback: Just print the progress to debug output
+        char buffer[64];
+        sprintf_s(buffer, "Progress: %lu%%\n", percent > 100 ? 100 : percent);
+        OutputDebugStringA(buffer);
     }
 }
 
