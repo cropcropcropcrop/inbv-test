@@ -1,0 +1,52 @@
+name: Build INBV Application
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    name: Build
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+        toolset: latest
+        spectre: true
+    
+    - name: Set up CMake
+      uses: jwlawson/actions-setup-cmake@v1.13
+      with:
+        cmake-version: '3.25.0'
+    
+    - name: Configure CMake
+      run: |
+        cmake -B ${{github.workspace}}/build \
+              -DCMAKE_BUILD_TYPE=Release \
+              -A x64 .
+      working-directory: ${{github.workspace}}
+    
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build --config Release
+      working-directory: ${{github.workspace}}
+    
+    - name: Run tests (if any)
+      run: ctest --output-on-failure --build-config Release
+      working-directory: ${{github.workspace}}/build
+      continue-on-error: true
+    
+    - name: Upload artifacts
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: inbv_runner
+        path: ${{github.workspace}}/build/Release/inbv_runner.exe
+        if-no-files-found: error
