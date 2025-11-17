@@ -46,5 +46,5 @@ jobs:
       uses: actions/upload-artifact@v5
       with:
         name: inbv_runner
-        path: ${{github.workspace}}/build/Release/inbv_runner.exe
+        path: ${{github.workspace}}/build/bin/Release/INBV_Command_Runner.exe
         if-no-files-found: error
