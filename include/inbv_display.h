@@ -1,17 +1,24 @@
 #ifndef INBV_DISPLAY_H
 #define INBV_DISPLAY_H
 
-#define WIN32_NO_STATUS
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <winternl.h>
-#include <ntstatus.h>
-#include <ntddk.h>
-#include <ntddvdeo.h>
-#include <inbv.h>
 
-// Undefine the status macros to avoid conflicts
-#undef STATUS_SUCCESS
-#undef STATUS_UNSUCCESSFUL
+// Define necessary types and constants that would normally come from WDK
+#ifndef NT_SUCCESS
+#define NT_SUCCESS(Status) ((NTSTATUS)(Status) >= 0)
+#endif
+
+// INBV function prototypes
+typedef VOID (NTAPI *INBV_DISPLAY_STRING_FN)(PCHAR String);
+typedef VOID (NTAPI *INBV_SET_TEXT_COLOR_FN)(ULONG Color);
+typedef VOID (NTAPI *INBV_SET_PROGRESS_BAR_SUBSET_FN)(ULONG SubsetIndex, ULONG MaximumValue);
+typedef VOID (NTAPI *INBV_SET_PROGRESS_BAR_POSITION_FN)(ULONG Position);
+typedef BOOLEAN (NTAPI *INBV_GET_DISPLAY_STATE_FN)(VOID);
+typedef VOID (NTAPI *INBV_ACQUIRE_DISPLAY_OWNERSHIP_FN)(VOID);
+typedef VOID (NTAPI *INBV_SET_DISPLAY_OWNERSHIP_FN)(BOOLEAN OwnDisplay);
+typedef VOID (NTAPI *INBV_SET_SCROLL_REGION_FN)(ULONG x1, ULONG y1, ULONG x2, ULONG y2);
 
 // Native NT function pointers
 typedef NTSTATUS (NTAPI *PNT_QUERY_SYSTEM_INFORMATION)(

@@ -1,68 +1,62 @@
 #include "inbv_display.h"
 #include <stdexcept>
+#include <string>
 
-// Define necessary constants and structures
-#define IOCTL_VIDEO_QUERY_SUPPORTED_BRIGHTNESS 0x230410
-#define IOCTL_VIDEO_QUERY_DISPLAY_BRIGHTNESS 0x230414
-#define IOCTL_VIDEO_SET_DISPLAY_BRIGHTNESS 0x230418
+// INBV function names
+constexpr const char* INBV_DISPLAY_STRING_FN_NAME = "InbvDisplayString";
+constexpr const char* INBV_SET_TEXT_COLOR_FN_NAME = "InbvSetTextColor";
+constexpr const char* INBV_SET_PROGRESS_BAR_SUBSET_FN_NAME = "InbvSetProgressBarSubset";
+constexpr const char* INBV_SET_PROGRESS_BAR_POSITION_FN_NAME = "InbvSetProgressBarPosition";
+constexpr const char* INBV_GET_DISPLAY_STATE_FN_NAME = "InbvGetDisplayState";
+constexpr const char* INBV_ACQUIRE_DISPLAY_OWNERSHIP_FN_NAME = "InbvAcquireDisplayOwnership";
+constexpr const char* INBV_SET_DISPLAY_OWNERSHIP_FN_NAME = "InbvSetDisplayOwnership";
+constexpr const char* INBV_SET_SCROLL_REGION_FN_NAME = "InbvSetScrollRegion";
 
-// Internal function to get NtDll function pointers
-bool InbvDisplay::LoadNtDllFunctions() {
-    hNtDll = LoadLibraryW(L"ntdll.dll");
-    if (!hNtDll) {
-        return false;
-    }
-
-    NtQuerySystemInformation = (PNT_QUERY_SYSTEM_INFORMATION)GetProcAddress(hNtDll, "NtQuerySystemInformation");
-    RtlInitUnicodeString = (RTL_INIT_UNICODE_STRING)GetProcAddress(hNtDll, "RtlInitUnicodeString");
-    ZwDeviceIoControlFile = (ZW_DEVICE_IO_CONTROL_FILE)GetProcAddress(hNtDll, "NtDeviceIoControlFile");
-
-    return (NtQuerySystemInformation != nullptr && 
-            RtlInitUnicodeString != nullptr && 
-            ZwDeviceIoControlFile != nullptr);
+// Helper function to get a function pointer from a module
+static FARPROC GetFunctionPointer(HMODULE hModule, const char* functionName) {
+    if (!hModule) return nullptr;
+    return GetProcAddress(hModule, functionName);
 }
 
 // Internal function to load INBV functions
 bool InbvDisplay::LoadInbvFunctions() {
+    // Try to load win32kbase.sys or win32kfull.sys
     hInbv = LoadLibraryW(L"win32kbase.sys");
     if (!hInbv) {
         hInbv = LoadLibraryW(L"win32kfull.sys");
         if (!hInbv) {
-            return false;
+            // Fall back to user32.dll for some functions
+            hInbv = LoadLibraryW(L"user32.dll");
+            if (!hInbv) {
+                return false;
+            }
         }
     }
 
     // Get INBV function pointers
-    *(FARPROC*)&InbvAcquireDisplayOwnership = GetProcAddress(hInbv, "InbvAcquireDisplayOwnership");
-    *(FARPROC*)&InbvNotifyDisplayOwnershipChange = GetProcAddress(hInbv, "InbvNotifyDisplayOwnershipChange");
-    *(FARPROC*)&InbvSetTextColor = GetProcAddress(hInbv, "InbvSetTextColor");
-    *(FARPROC*)&InbvSetScrollRegion = GetProcAddress(hInbv, "InbvSetScrollRegion");
-    *(FARPROC*)&InbvSetDisplayOwnership = GetProcAddress(hInbv, "InbvSetDisplayOwnership");
-    *(FARPROC*)&InbvDisplayString = GetProcAddress(hInbv, "InbvDisplayString");
-    *(FARPROC*)&InbvGetDisplayState = GetProcAddress(hInbv, "InbvGetDisplayState");
-    *(FARPROC*)&InbvSetProgressBarSubset = GetProcAddress(hInbv, "InbvSetProgressBarSubset");
-    *(FARPROC*)&InbvSetProgressBarPosition = GetProcAddress(hInbv, "InbvSetProgressBarPosition");
+    InbvDisplayString = (INBV_DISPLAY_STRING_FN)GetFunctionPointer(hInbv, INBV_DISPLAY_STRING_FN_NAME);
+    InbvSetTextColor = (INBV_SET_TEXT_COLOR_FN)GetFunctionPointer(hInbv, INBV_SET_TEXT_COLOR_FN_NAME);
+    InbvSetProgressBarSubset = (INBV_SET_PROGRESS_BAR_SUBSET_FN)GetFunctionPointer(hInbv, INBV_SET_PROGRESS_BAR_SUBSET_FN_NAME);
+    InbvSetProgressBarPosition = (INBV_SET_PROGRESS_BAR_POSITION_FN)GetFunctionPointer(hInbv, INBV_SET_PROGRESS_BAR_POSITION_FN_NAME);
+    InbvGetDisplayState = (INBV_GET_DISPLAY_STATE_FN)GetFunctionPointer(hInbv, INBV_GET_DISPLAY_STATE_FN_NAME);
+    InbvAcquireDisplayOwnership = (INBV_ACQUIRE_DISPLAY_OWNERSHIP_FN)GetFunctionPointer(hInbv, INBV_ACQUIRE_DISPLAY_OWNERSHIP_FN_NAME);
+    InbvSetDisplayOwnership = (INBV_SET_DISPLAY_OWNERSHIP_FN)GetFunctionPointer(hInbv, INBV_SET_DISPLAY_OWNERSHIP_FN_NAME);
+    InbvSetScrollRegion = (INBV_SET_SCROLL_REGION_FN)GetFunctionPointer(hInbv, INBV_SET_SCROLL_REGION_FN_NAME);
 
-    return (InbvDisplayString != nullptr && 
-            InbvSetTextColor != nullptr &&
-            InbvSetProgressBarPosition != nullptr);
+    // We only require the display string function to be available
+    return (InbvDisplayString != nullptr);
 }
 
 InbvDisplay::InbvDisplay() 
-    : NtQuerySystemInformation(nullptr),
-      RtlInitUnicodeString(nullptr),
-      ZwDeviceIoControlFile(nullptr),
-      InbvAcquireDisplayOwnership(nullptr),
-      InbvNotifyDisplayOwnershipChange(nullptr),
-      InbvSetTextColor(nullptr),
-      InbvSetScrollRegion(nullptr),
-      InbvSetDisplayOwnership(nullptr),
+    : hInbv(nullptr),
       InbvDisplayString(nullptr),
-      InbvGetDisplayState(nullptr),
+      InbvSetTextColor(nullptr),
       InbvSetProgressBarSubset(nullptr),
       InbvSetProgressBarPosition(nullptr),
-      hNtDll(nullptr),
-      hInbv(nullptr),
+      InbvGetDisplayState(nullptr),
+      InbvAcquireDisplayOwnership(nullptr),
+      InbvSetDisplayOwnership(nullptr),
+      InbvSetScrollRegion(nullptr),
       initialized(false) {
 }
 
@@ -71,10 +65,6 @@ InbvDisplay::~InbvDisplay() {
         FreeLibrary(hInbv);
         hInbv = nullptr;
     }
-    if (hNtDll) {
-        FreeLibrary(hNtDll);
-        hNtDll = nullptr;
-    }
 }
 
 bool InbvDisplay::Initialize() {
@@ -82,31 +72,22 @@ bool InbvDisplay::Initialize() {
         return true;
     }
 
-    // Load NT DLL functions
-    if (!LoadNtDllFunctions()) {
-        return false;
-    }
-
     // Load INBV functions
     if (!LoadInbvFunctions()) {
-        if (hNtDll) {
-            FreeLibrary(hNtDll);
-            hNtDll = nullptr;
-        }
         return false;
     }
 
-    // Take ownership of the display
+    // Try to take ownership of the display if possible
     if (InbvAcquireDisplayOwnership) {
         InbvAcquireDisplayOwnership();
     }
 
-    // Set up display
+    // Set up display if possible
     if (InbvSetDisplayOwnership) {
         InbvSetDisplayOwnership(TRUE);
     }
 
-    // Set default scroll region (full screen)
+    // Set default scroll region if possible
     if (InbvSetScrollRegion) {
         InbvSetScrollRegion(0, 0, 79, 24);  // Standard 80x25 text mode
     }
@@ -119,15 +100,25 @@ void InbvDisplay::DisplayString(const char* message) {
     if (initialized && InbvDisplayString) {
         // Convert to non-const as the INBV functions expect PCHAR
         InbvDisplayString(const_cast<PCHAR>(message));
+    } else if (initialized) {
+        // Fallback to OutputDebugString if INBV is not available
+        OutputDebugStringA(message);
     }
 }
 
 void InbvDisplay::SetProgress(ULONG percent) {
-    if (initialized && InbvSetProgressBarSubset && InbvSetProgressBarPosition) {
-        // Set the progress bar range (0-100)
-        InbvSetProgressBarSubset(0, 100);
-        // Set the current position
-        InbvSetProgressBarPosition(percent > 100 ? 100 : percent);
+    if (initialized) {
+        if (InbvSetProgressBarSubset && InbvSetProgressBarPosition) {
+            // Set the progress bar range (0-100)
+            InbvSetProgressBarSubset(0, 100);
+            // Set the current position
+            InbvSetProgressBarPosition(percent > 100 ? 100 : percent);
+        } else {
+            // Fallback: Just print the progress to debug output
+            char buffer[64];
+            sprintf_s(buffer, "Progress: %lu%%\n", percent > 100 ? 100 : percent);
+            OutputDebugStringA(buffer);
+        }
     }
 }
 
@@ -135,4 +126,5 @@ void InbvDisplay::SetTextColor(ULONG color) {
     if (initialized && InbvSetTextColor) {
         InbvSetTextColor(color);
     }
+    // No fallback for color setting
 }
