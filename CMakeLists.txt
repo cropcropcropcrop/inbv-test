@@ -1,74 +1,85 @@
-cmake_minimum_required(VERSION 3.15)
-project(INBV_Command_Runner
-    VERSION 1.0
-    DESCRIPTION "INBV Command Runner Application"
-    LANGUAGES CXX
-)
+cmake_minimum_required(VERSION 3.10)
+project(INBV_Command_Runner VERSION 1.0.0 LANGUAGES CXX)
 
-# Set C++ standard and properties
+# Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Set output directories
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-# Platform-specific settings
+# Set Windows-specific options
 if(WIN32)
-    add_definitions(-D_WIN32_WINNT=0x0A00)  # Target Windows 10
-    add_compile_definitions(UNICODE _UNICODE)
+    # Common Windows definitions for native applications
+    add_compile_definitions(
+        _WINDOWS
+        UNICODE
+        _UNICODE
+        _WIN32_WINNT=0x0A00  # Windows 10
+        NTDDI_VERSION=0x0A000000
+        _NATIVE_SUBSYSTEM
+    )
     
     # Set Windows SDK version (if available)
     if(MSVC)
         set(CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION "10.0.19041.0" CACHE STRING "Windows SDK version to use")
-        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+        
+        # MSVC-specific compiler flags
+        add_compile_options(
+            /W4
+            /WX
+            /EHsc
+        )
     endif()
     
-    # Add Windows-specific source files if needed
-    set(PLATFORM_SOURCES 
-        src/inbv_display.cpp
-    )
+    # Set native subsystem and entry point for native applications
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:NATIVE /ENTRY:mainCRTStartup")
+    set(CMAKE_RC_FLAGS "-D_WIN32")
 else()
     message(WARNING "This application is primarily designed for Windows platform")
-    set(PLATFORM_SOURCES 
-        src/inbv_display_stub.cpp
-    )
 endif()
 
-# Add executable
+# Add executable with source files
 add_executable(${PROJECT_NAME}
     src/main.cpp
-    ${PLATFORM_SOURCES}
+    src/inbv_display.cpp
+)
+
+# Set target properties
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    WIN32_EXECUTABLE FALSE
+    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
 )
 
 # Include directories
-target_include_directories(${PROJECT_NAME} PRIVATE 
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-# Platform-specific linking
+# Link libraries
 if(WIN32)
     target_link_libraries(${PROJECT_NAME} PRIVATE
         user32
         kernel32
         gdi32
-        ntdll
+        advapi32
     )
     
-    # Set Windows subsystem (console)
+    # Set Windows subsystem to NATIVE
     set_target_properties(${PROJECT_NAME} PROPERTIES
-        WIN32_EXECUTABLE TRUE
-    )
-    
-    # Post-build event to copy required DLLs if needed
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E echo "Build complete: $<TARGET_FILE:${PROJECT_NAME}>"
+        LINK_FLAGS "/SUBSYSTEM:NATIVE /ENTRY:mainCRTStartup"
     )
 endif()
 
+# Install target
+install(TARGETS ${PROJECT_NAME}
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+)
 # Installation
 install(TARGETS ${PROJECT_NAME}
     RUNTIME DESTINATION bin
