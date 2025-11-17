@@ -62,15 +62,21 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 # Link libraries
 if(WIN32)
     target_link_libraries(${PROJECT_NAME} PRIVATE
+        ntdll
         user32
-        kernel32
         gdi32
-        advapi32
     )
     
     # Set Windows subsystem to NATIVE
     set_target_properties(${PROJECT_NAME} PROPERTIES
-        LINK_FLAGS "/SUBSYSTEM:NATIVE /ENTRY:mainCRTStartup"
+        LINK_FLAGS "/SUBSYSTEM:NATIVE /ENTRY:mainCRTStartup /NODEFAULTLIB:kernel32.lib"
+    )
+    
+    # Add defines for Windows 10
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        _WIN32_WINNT=0x0A00
+        NTDDI_VERSION=0x0A000000
+        WINVER=0x0A00
     )
 endif()
 
